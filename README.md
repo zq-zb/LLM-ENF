@@ -134,8 +134,6 @@ openai (DeepSeek API)
 | [1] | He X, Deng K, Wang X, et al. **LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation.** *SIGIR 2020.* | ID 协同特征提取（3 层图卷积，BPR 损失） |
 | [2] | Radford A, Kim J W, Hallacy C, et al. **Learning Transferable Visual Models From Natural Language Supervision.** *ICML 2021.* | CLIP ViT-L/14 图像特征提取 |
 | [3] | Xiao S, Liu Z, Zhang P, et al. **C-Pack: Packaged Resources To Advance General Chinese Embedding.** *arXiv:2309.07597, 2023.* | BGE-large-en-v1.5 文本特征编码 |
-| [4] | Kang W C, McAuley J. **Self-Attentive Sequential Recommendation.** *ICDM 2018.* | SASRec 单域序列推荐基线 |
-| [5] | Vaswani A, Shazeer N, Parmar N, et al. **Attention Is All You Need.** *NeurIPS 2017.* | Transformer 编码器基础架构 |
 | [6] | — **LLM-Enhanced Multimodal Fusion for Cross-Domain Sequential Recommendation.** | LLM-EMF 主框架（LLM 语义增强 + 多模态融合 + 跨域序列建模） |
 
 > 注：本文基于 LLM-EMF 框架实现，使用 DeepSeek V4 作为 LLM 文本增强后端。
