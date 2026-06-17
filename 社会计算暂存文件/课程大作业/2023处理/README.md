@@ -38,7 +38,7 @@
     │   ├── cdsr_model.py
     │   ├── train.py / train.ipynb
     │   └── requirements.txt
-    └── CLIP特征训练/                      # 旧版 CLIP 统一特征训练（已弃用）
+    └── CLIP特征训练/                      # 旧版 CLIP 统一特征训练
         ├── cdsr_model.py
         ├── train.ipynb
         └── results.txt
@@ -87,7 +87,6 @@ DeepSeek API，六维度结构化 Prompt (Genre / Plot / Style / Themes / Audien
 ## 模型架构
 
 **CDSRModel** — 层次化多注意力序列建模：
-
 ```
 输入层:  预训练特征 -> nn.Embedding -> Linear 投影 (异构->256d)
 序列层:  3 序列 (Sx/Sy/Sxy) x 3 模态 (ID/Image/Text) = 9 个 DomainTransformer
@@ -120,16 +119,6 @@ DeepSeek API，六维度结构化 Prompt (Genre / Plot / Style / Themes / Audien
 | GPU | RTX 5090 32GB (AutoDL) |
 | 评测 | 全量排序 (43,528 候选)，HR@10 / NDCG@10 / MRR |
 
-## 主要实验结果
-
-| 实验 | 关键发现 |
-|------|------|
-| 架构消融 | +Text +0.60% / +Image -0.01% / +Cross -0.35% (Test HR@10) |
-| 文本变体消融 | LLM 增强 +0.08%，极差 0.18%，增益源于 BGE 编码器 |
-| 推理策略消融 | in_only 6.11% vs full 3.36%，跨域信号为噪声 |
-| 最优策略 | full 架构训练 + in_only 推理，Test HR@10=6.11% |
-
-## 环境依赖
 
 ```
 torch>=2.0
@@ -138,6 +127,15 @@ pandas numpy tqdm Pillow scipy
 openai (DeepSeek API)
 ```
 
-## 参考
+## 参考文献
 
-基于 LLM-EMF: *LLM-Enhanced Multimodal Fusion for Cross-Domain Sequential Recommendation*
+| 序号 | 论文 | 用途 |
+|:---:|------|------|
+| [1] | He X, Deng K, Wang X, et al. **LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation.** *SIGIR 2020.* | ID 协同特征提取（3 层图卷积，BPR 损失） |
+| [2] | Radford A, Kim J W, Hallacy C, et al. **Learning Transferable Visual Models From Natural Language Supervision.** *ICML 2021.* | CLIP ViT-L/14 图像特征提取 |
+| [3] | Xiao S, Liu Z, Zhang P, et al. **C-Pack: Packaged Resources To Advance General Chinese Embedding.** *arXiv:2309.07597, 2023.* | BGE-large-en-v1.5 文本特征编码 |
+| [4] | Kang W C, McAuley J. **Self-Attentive Sequential Recommendation.** *ICDM 2018.* | SASRec 单域序列推荐基线 |
+| [5] | Vaswani A, Shazeer N, Parmar N, et al. **Attention Is All You Need.** *NeurIPS 2017.* | Transformer 编码器基础架构 |
+| [6] | — **LLM-Enhanced Multimodal Fusion for Cross-Domain Sequential Recommendation.** | LLM-EMF 主框架（LLM 语义增强 + 多模态融合 + 跨域序列建模） |
+
+> 注：本文基于 LLM-EMF 框架实现，使用 DeepSeek V4 作为 LLM 文本增强后端。
