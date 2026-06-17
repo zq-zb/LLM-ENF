@@ -1,44 +1,141 @@
-# 社会计算 课程大作业 — 跨域多模态推荐 (Movie-Book CDSR)
+# LLM-EMF: 多模态跨域序列推荐
 
-## 项目概览
-本仓库实现了一个面向电影与图书（Movie ↔ Book）的跨域推荐数据处理与多模态特征提取流水线。核心流程涵盖：数据清洗、ID-协同嵌入训练、文本与图像特征抽取（CLIP / Long-CLIP）、以及基于自注意力的用户序列编码，最终生成每个用户的 9 组偏好向量（形状：[9, 512]）。
+基于 LLM-EMF 框架的电影—图书跨域序列推荐系统，融合 **LLM 文本语义增强 + CLIP/BGE 多模态编码 + 分层注意力序列建模**。
 
-## 快速导航
-- 数据目录: [movie_book_cdsr_processed](movie_book_cdsr_processed)
-- 主要 Notebook: [module嵌入.ipynb](module嵌入.ipynb)，[module建模.ipynb](module建模.ipynb)
-- 特征提取脚本: [module1_id_embedding.py](module1_id_embedding.py), [module2_text_CLIP.py](module2_text_CLIP.py), [module2_text_Long.py](module2_text_Long.py), [module3_image_feature.py](module3_image_feature.py)
-- 辅助脚本: [csvclean.py](csvclean.py), [config.py](config.py)
-- 输出示例目录: [user_preferences](user_preferences)（以及 movie_book_cdsr_processed/user_preferences2）
+## 目录结构
 
-## Notebook 区别（重要）
-- `module建模.ipynb`：汇聚三类全局嵌入（ID / 图像 / 文本），示例中使用 Long-CLIP 文本特征（`text_features_longclip_512.npy` / `text_features_longclip_aligned_512.npy`）并将用户偏好保存到 `./user_preferences/`。 这里是Long-CLIP的偏好向量
-- `module建模.ipynb`：结构与编码器实现基本一致，但使用 CLIP 文本特征（`text_features_clip_512.npy`），并将结果保存为 `movie_book_cdsr_processed/user_preferences2/`。
+```
+├── pre处理/                         # 数据预处理
+│   ├── pre_meta_movie.ipynb               # 电影元数据清洗
+│   ├── pre_meta_book.ipynb                # 图书元数据清洗
+│   ├── pre_interaction_movie.ipynb        # 电影交互过滤
+│   ├── pre_interaction_book.ipynb         # 图书交互过滤
+│   ├── merge_and_split.ipynb              # 双域合并 + 交叉筛选 + 时序划分
+│   └── download_images.py                 # 批量下载物品图片
+│
+├── LLM+特征提取/                    # LLM 增强 + 多模态特征提取
+│   ├── vitl14提取/                        # 当前特征管线
+│   │   ├── text_llm_enhance_v2.ipynb            # LLM V2 六维度语义增强 (DeepSeek)
+│   │   ├── extract_id_lightgcn.ipynb            # LightGCN 512d ID 协同特征
+│   │   ├── extract_image_vitl14.ipynb           # ViT-L/14 768d 图像特征
+│   │   ├── extract_text_bge_3var.ipynb          # BGE-large 1024d 三变体文本特征
+│   │   └── extract_id_lightgcn_v2_e2e.ipynb
+│   └── CLIP特征提取/                      # 旧版 CLIP 管线（已弃用）
+│       ├── text_llm_enhance.ipynb
+│       ├── extract_id_embeddings.ipynb
+│       ├── extract_image_features.ipynb
+│       ├── extract_text_features.ipynb
+│       └── extract_clip_nollm.py
+│
+└── 训练/                            # 模型训练与消融实验
+    ├── 主实验训练/                        # 主实验（LightGCN + ViT-L/14 + BGE-large）
+    │   ├── cdsr_model.py                   # 模型定义（异构特征维度，可学习跨域权重）
+    │   ├── train.ipynb                     # 主训练
+    │   ├── ablation.ipynb                  # 架构消融（4 变体）
+    │   ├── ablation_text_variants.ipynb    # 文本变体消融（3 变体）
+    │   └── requirements.txt
+    ├── 主实验+图文对齐/                   # +InfoNCE 图文对齐 Loss
+    │   ├── cdsr_model.py
+    │   ├── train.py / train.ipynb
+    │   └── requirements.txt
+    └── CLIP特征训练/                      # 旧版 CLIP 统一特征训练
+        ├── cdsr_model.py
+        ├── train.ipynb
+        └── results.txt
+```
 
-两份 notebook 方便比较不同文本特征（CLIP vs Long-CLIP）对下游偏好表示的影响。
+## 数据处理流水线
 
-## 脚本说明
-- `config.py`: 全局路径与模型/维度配置（`FEATURE_SAVE_DIR`, `CLIP_MODEL`, `LONG_CLIP_MODEL`, `MODAL_DIM` 等）。
-- `csvclean.py`: 检测并清洗物品元信息中的脏行，生成干净 CSV 与 `bad_lines_report.txt`。
-- `module1_id_embedding.py`: 使用 Word2Vec 从用户交互序列训练物品 ID 的协同嵌入，保存为 `item_id_collab_512.npy`。
-- `module2_text_CLIP.py`: 使用 CLIP 模型提取文本嵌入（短上下文，示例 token 限制 77），保存为 `text_features_clip_512.npy` 和 `text_id_map_clip.csv`。
-- `module2_text_Long.py`: 使用 Long-CLIP 提取长文本嵌入（示例 max_length=248），若输出维度 ≠ 512 则用 PCA 对齐至 512 并保存投影参数（`longclip_pca_projection.npz`）。输出为 `text_features_longclip_aligned_512.npy`。
-- `module3_image_feature.py`: 使用 CLIP 提取图像特征；若图片缺失或打开失败，脚本会在对应位置填充小随机向量以保持对齐，输出 `image_features_512.npy` 与 `image_id_map.csv`。
+Amazon Reviews 2023 数据集，电影 (Movies_and_TV) ↔ 图书 (Books)。
 
-## 数据与输出位置
-- 主数据：`movie_book_cdsr_processed/`（包含 `train.csv`, `val.csv`, `test.csv`, `item_meta*.csv`, `item2id.json`, `user2id.json` 等）。
-- 多模态特征目录示例：`movie_book_cdsr_processed/multimodal_features/` 与 `.../multimodal_features_last/`，保存如下文件：
-  - `image_features_512.npy`
-  - `text_features_clip_512.npy`
-  - `text_features_longclip_512.npy` / `text_features_longclip_aligned_512.npy`
-  - `item_id_collab_512.npy`
-- 用户偏好输出：
-  - `user_preferences/user_9_preferences.npy`、`user_preferences/user_ids.npy`（由 `module嵌入.ipynb` 生成的默认位置）
-  - `movie_book_cdsr_processed/user_preferences2/user_9_preferences.npy`、`.../user_ids.npy`（由 `module建模.ipynb` 生成的备选位置）
+| 指标 | 数值 |
+|------|------:|
+| 用户数 | 20,030 |
+| 物品数 | 43,528（电影 21,280 + 图书 22,248） |
+| 总交互 | 688,010 |
+| 划分 | Train 647,950 / Val 20,030 / Test 20,030 (leave-last-2) |
 
-## 关键实现细节
-- 编码器：Notebook 中采用 9 个并行编码器（索引 0~8）：
-  - 0:X^ID, 1:X^视觉, 2:X^文本,
-  - 3:Y^ID, 4:Y^视觉, 5:Y^文本,
-  - 6:X+Y^ID, 7:X+Y^视觉, 8:X+Y^文本
-  每个编码器由 `PositionalEncoding` + `TransformerLayer` 组成，最终取序列最后位置作为偏好向量。
-- 输出格式：每个用户最终得到 `9 × 512` 的偏好表示，并保存为 numpy 数组以便下游建模。
+### 处理步骤
+
+1. **元数据清洗**：保留同时有 title + 有效图片 URL 的物品
+2. **单域交互过滤**：迭代式双向过滤 (item>=5, user>=5)
+3. **双域交叉筛选**：双域用户 -> 每域>=3 -> 总交互>=10 -> (item>=7, user>=7, 每域>=5)
+4. **ID 映射 + 时序划分**：全局连续 ID，leave-last-2 策略
+
+## 特征工程
+
+### 多模态特征体系
+
+| 模态 | 方法 | 维度 | 说明 |
+|------|------|:---:|------|
+| ID 协同 | LightGCN 3-layer | 512 | BPR 损失，weight_decay=0 |
+| 图像 | CLIP ViT-L/14 | 768 | 14x14 patch，24 层 |
+| 文本 | BGE-large-en-v1.5 | 1024 | 512 token，含 LLM 六维度增强 |
+
+### LLM 文本增强
+
+DeepSeek API，六维度结构化 Prompt (Genre / Plot / Style / Themes / Audience / Similar To)，200 词输出，20 线程并发，全量 43,528 物品。
+
+### 文本三变体
+
+| 变体 | 输入 | 用途 |
+|------|------|------|
+| A: desc | title + 原始描述[:1500] | 纯原文基线 |
+| B: llm | title + LLM 生成描述 | LLM 蒸馏价值 |
+| C: llmdesc | title + LLM + desc[:400] | LLM+原文互补 |
+
+## 模型架构
+
+**CDSRModel** — 层次化多注意力序列建模：
+```
+输入层:  预训练特征 -> nn.Embedding -> Linear 投影 (异构->256d)
+序列层:  3 序列 (Sx/Sy/Sxy) x 3 模态 (ID/Image/Text) = 9 个 DomainTransformer
+预测层:  余弦相似度 x 温度缩放 -> 可学习模态加权融合 -> 域掩码 -> 可学习跨域聚合
+```
+
+- **DomainTransformer**: 2 层 4 头 Pre-LN Transformer，正弦位置编码，因果+填充双重掩码
+- **晚融合**: 各模态独立计算余弦分数，可学习权重加权求和
+- **跨域聚合**: 可学习 lambda1/lambda2 (初始 0.3/0.1)
+- **损失**: L = L_Sx + lambda1 x L_Sy + lambda2 x L_Sxy
+
+### 消融配置
+
+| 模式 | 模态 | 跨域 | 参数量 |
+|------|------|:---:|:---:|
+| id_only | ID | - | 27.9M |
+| id_text | ID + Text | - | 78.6M |
+| id_text_img | ID + Text + Image | - | 117.8M |
+| full | ID + Text + Image | Yes | 126.3M |
+
+## 训练配置
+
+| 超参数 | 值 |
+|------|------|
+| 优化器 | AdamW (lr=1.4e-3, wd=0.01) |
+| 调度器 | ReduceLROnPlateau (mode="max", patience=3) |
+| 早停 | patience=5 |
+| Batch Size | 256-768 (按参数量自适应) |
+| AMP | 是，梯度裁剪 1.0 |
+| GPU | RTX 5090 32GB (AutoDL) |
+| 评测 | 全量排序 (43,528 候选)，HR@10 / NDCG@10 / MRR |
+
+
+```
+torch>=2.0
+transformers
+pandas numpy tqdm Pillow scipy
+openai (DeepSeek API)
+```
+
+## 参考文献
+
+| 序号 | 论文 | 用途 |
+|:---:|------|------|
+| [1] | He X, Deng K, Wang X, et al. **LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation.** *SIGIR 2020.* | ID 协同特征提取（3 层图卷积，BPR 损失） |
+| [2] | Radford A, Kim J W, Hallacy C, et al. **Learning Transferable Visual Models From Natural Language Supervision.** *ICML 2021.* | CLIP ViT-L/14 图像特征提取 |
+| [3] | Xiao S, Liu Z, Zhang P, et al. **C-Pack: Packaged Resources To Advance General Chinese Embedding.** *arXiv:2309.07597, 2023.* | BGE-large-en-v1.5 文本特征编码 |
+| [4] | Kang W C, McAuley J. **Self-Attentive Sequential Recommendation.** *ICDM 2018.* | SASRec 单域序列推荐基线 |
+| [5] | Vaswani A, Shazeer N, Parmar N, et al. **Attention Is All You Need.** *NeurIPS 2017.* | Transformer 编码器基础架构 |
+| [6] | — **LLM-Enhanced Multimodal Fusion for Cross-Domain Sequential Recommendation.** | LLM-EMF 主框架（LLM 语义增强 + 多模态融合 + 跨域序列建模） |
+
+> 注：本文基于 LLM-EMF 框架实现，使用 DeepSeek V4 作为 LLM 文本增强后端。
