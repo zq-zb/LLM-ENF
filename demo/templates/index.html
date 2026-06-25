@@ -1,0 +1,811 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <!-- MODE 1: RECOMMENDATION VIEW -->
+    <div id="mode-recommend" class="lg:col-span-12 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Side: Source Domain Selector & Search & Custom Queue -->
+        <div class="lg:col-span-5 flex flex-col space-y-6">
+            <!-- Source Domain Switcher & Control -->
+            <div class="glass-panel p-6 rounded-2xl relative overflow-hidden">
+                <div class="absolute -right-16 -top-16 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl"></div>
+                <h2 class="text-lg font-bold text-white mb-4 flex items-center">
+                    <i class="fa-solid fa-sliders text-purple-400 mr-2"></i>
+                    推荐流向配置
+                </h2>
+                
+                <div class="flex p-1 bg-black/40 rounded-xl border border-white/5 mb-4">
+                    <button id="flow-m2b" onclick="setFlowDirection('movie', 'book')" class="flex-1 py-3 text-center rounded-lg font-bold cyber-font text-base transition-all bg-purple-600/30 text-purple-300 border border-purple-500/30">
+                        <i class="fa-solid fa-film mr-2"></i>电影 ➔ 书籍
+                    </button>
+                    <button id="flow-b2m" onclick="setFlowDirection('book', 'movie')" class="flex-1 py-3 text-center rounded-lg font-bold cyber-font text-base transition-all text-gray-400 hover:text-white">
+                        <i class="fa-solid fa-book mr-2"></i>书籍 ➔ 电影
+                    </button>
+                </div>
+                
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-400">当前交互序列上限</span>
+                    <span class="text-cyan-400 font-bold cyber-font">50 个物品</span>
+                </div>
+            </div>
+
+            <!-- Auto Selection from Preset Users -->
+            <div class="glass-panel p-6 rounded-2xl">
+                <h2 class="text-lg font-bold text-white mb-3 flex items-center">
+                    <i class="fa-solid fa-circle-user text-cyan-400 mr-2"></i>
+                    载入活跃用户测试画像
+                </h2>
+                <p class="text-xs text-gray-400 mb-4">快速载入具有真实历史交互的用户序列，体验跨域推荐效果</p>
+                <div class="relative">
+                    <select id="user-presets" onchange="loadPresetUser(this.value)" class="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-400/50 appearance-none">
+                        <option value="">-- 选择活跃测试用户 (加载历史序列) --</option>
+                    </select>
+                    <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-cyan-400">
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Items Search & Popular Browser -->
+            <div class="glass-panel p-6 rounded-2xl flex flex-col flex-grow">
+                <h2 class="text-lg font-bold text-white mb-4 flex items-center">
+                    <i class="fa-solid fa-magnifying-glass text-cyan-400 mr-2"></i>
+                    选择来源域物品
+                </h2>
+
+                <!-- Search Input with Debounce -->
+                <div class="relative mb-6">
+                    <input type="text" id="search-input" oninput="handleSearchDebounce(event)" placeholder="输入电影名称查找..." class="w-full bg-black/40 border border-white/15 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-cyan-400/60 placeholder:text-gray-600 transition-all">
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                        <i class="fa-solid fa-search"></i>
+                    </span>
+                    <div id="search-spinner" class="absolute right-4 top-1/2 -translate-y-1/2 hidden">
+                        <i class="fa-solid fa-circle-notch animate-spin text-cyan-400"></i>
+                    </div>
+                </div>
+
+                <!-- Tabs: Search Results vs. Hot Popular -->
+                <div class="flex space-x-4 border-b border-white/10 mb-4 pb-2 text-sm font-semibold">
+                    <button id="tab-search" onclick="toggleItemsTab('search')" class="text-cyan-400 border-b-2 border-cyan-400 pb-2 px-1">搜索结果</button>
+                    <button id="tab-popular" onclick="toggleItemsTab('popular')" class="text-gray-400 hover:text-white pb-2 px-1">热门推荐</button>
+                </div>
+
+                <!-- Scrollable list of items -->
+                <div class="flex-grow overflow-y-auto max-h-[360px] pr-2 space-y-3" id="items-pool-list">
+                    <!-- Dynamic Items insertion -->
+                </div>
+            </div>
+
+            <!-- Queue (Current selections) -->
+            <div class="glass-panel p-6 rounded-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold text-white flex items-center">
+                        <i class="fa-solid fa-list-check text-purple-400 mr-2"></i>
+                        已选历史序列 
+                        <span id="queue-counter" class="ml-2 px-2.5 py-0.5 rounded-full bg-purple-600/30 border border-purple-500/30 text-purple-300 text-xs cyber-font">0</span>
+                    </h2>
+                    <button onclick="clearQueue()" class="text-xs text-rose-400 hover:text-rose-300 font-medium transition-colors">
+                        <i class="fa-solid fa-trash-can mr-1"></i>清空
+                    </button>
+                </div>
+                <!-- Tag container -->
+                <div id="queue-tags" class="flex flex-wrap gap-2.5 max-h-[160px] overflow-y-auto pr-1">
+                    <div class="text-gray-500 text-sm py-4 text-center w-full">未选择任何物品。在上方搜索并添加到序列。</div>
+                </div>
+                
+                <button onclick="runCrossDomainRecommendation()" id="btn-run-rec" class="w-full mt-6 py-3.5 rounded-xl font-bold cyber-font text-base btn-neon-cyan flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>运行 Transformer 推荐预测</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Side: Recommendation Results & Transformer Weights Viz -->
+        <div class="lg:col-span-7 flex flex-col space-y-6">
+            <div class="glass-panel p-6 rounded-2xl flex-grow flex flex-col relative overflow-hidden min-h-[500px]">
+                <div class="absolute -right-32 -bottom-32 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl"></div>
+                <div class="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center tracking-wide">
+                            <i class="fa-solid fa-magnifying-glass-chart text-cyan-400 mr-2"></i>
+                            预测推荐结果 (TOP 10)
+                        </h2>
+                        <p class="text-xs text-gray-400 mt-1">融合 ID + 文本 (BGE-M3/LLM) + 图像 (ViT) 表征的多模态注意力得分</p>
+                    </div>
+                    <div id="rec-loading" class="hidden">
+                        <i class="fa-solid fa-circle-notch animate-spin text-cyan-400 text-lg"></i>
+                    </div>
+                </div>
+
+                <!-- Recommendation Cards List -->
+                <div id="recommendation-results" class="flex-grow space-y-4 overflow-y-auto max-h-[750px] pr-2">
+                    <div class="h-full flex flex-col items-center justify-center text-center text-gray-500 py-16">
+                        <i class="fa-solid fa-wand-magic-sparkles text-5xl mb-4 text-cyan-400/25"></i>
+                        <p class="text-base font-semibold text-gray-400 mb-1">等待模型推理</p>
+                        <p class="text-xs text-gray-500">请构建左侧交互历史序列，然后点击运行推荐</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODE 2: SOCIAL DISCOVERY VIEW -->
+    <div id="mode-social" class="lg:col-span-12 hidden grid grid-cols-1 lg:grid-cols-12 gap-8 fade-in">
+        <!-- Left Side: Top 50 Active Users List -->
+        <div class="lg:col-span-4 flex flex-col space-y-6">
+            <div class="glass-panel p-6 rounded-2xl flex flex-col h-[750px]">
+                <div class="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
+                    <h2 class="text-lg font-bold text-white flex items-center">
+                        <i class="fa-solid fa-users text-cyan-400 mr-2"></i>
+                        Top50 活跃用户画像
+                    </h2>
+                    <span class="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30 font-bold cyber-font">ACTIVE</span>
+                </div>
+                
+                <!-- ID Filtering -->
+                <div class="relative mb-4">
+                    <input type="text" id="social-search" oninput="filterActiveUsers(this.value)" placeholder="输入用户 ID 过滤..." class="w-full bg-black/40 border border-white/15 rounded-xl py-2 pl-10 pr-4 text-white text-sm focus:outline-none focus:border-cyan-400/60 placeholder:text-gray-600 transition-all">
+                    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs">
+                        <i class="fa-solid fa-search"></i>
+                    </span>
+                </div>
+
+                <!-- Scrollable list of Top 50 Users -->
+                <div id="active-users-list" class="flex-grow overflow-y-auto space-y-3 pr-1">
+                    <!-- Dynamic Insertion -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: User Details, Similar User Discovery and Overlap Analysis -->
+        <div class="lg:col-span-8 flex flex-col space-y-6">
+            <div class="glass-panel p-6 rounded-2xl min-h-[750px] flex flex-col relative overflow-hidden" id="social-detail-panel">
+                <div class="absolute -right-32 -bottom-32 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl"></div>
+                <div class="h-full flex flex-col items-center justify-center text-center text-gray-500 py-16 my-auto" id="social-empty-state">
+                    <i class="fa-solid fa-id-card text-5xl mb-4 text-purple-400/25"></i>
+                    <p class="text-base font-semibold text-gray-400 mb-1">选择一个活跃用户</p>
+                    <p class="text-xs text-gray-500">点击左侧列表中的用户卡片，查看其详细交互历史、跨域重叠度及品味相似圈</p>
+                </div>
+
+                <!-- Dynamic Detailed User Content -->
+                <div id="social-user-details" class="hidden flex-col space-y-6 h-full flex-grow">
+                    <!-- Title/Overview Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-white/10 gap-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white text-2xl font-bold cyber-font shadow-lg shadow-indigo-500/20">
+                                <i class="fa-solid fa-user-astronaut"></i>
+                            </div>
+                            <div>
+                                <h3 id="detail-username" class="text-xl font-bold text-white cyber-title"></h3>
+                                <p id="detail-userid" class="text-xs text-gray-500 font-mono tracking-wider mt-0.5"></p>
+                            </div>
+                        </div>
+                        <!-- Copy & Load buttons -->
+                        <div class="flex items-center space-x-3">
+                            <button id="btn-load-to-rec" class="px-4 py-2 bg-cyan-600/30 hover:bg-cyan-600 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 hover:text-white rounded-xl text-sm font-bold cyber-font transition-all flex items-center space-x-2">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                <span>载入到推荐流</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- User History Dashboard -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-black/30 border border-white/5 p-4 rounded-xl flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold">历史总交互</p>
+                                <h4 id="dash-total" class="text-2xl font-black cyber-font text-white mt-1">0</h4>
+                            </div>
+                            <i class="fa-solid fa-chart-line text-cyan-500/30 text-2xl"></i>
+                        </div>
+                        <div class="bg-black/30 border border-white/5 p-4 rounded-xl flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold">电影领域交互</p>
+                                <h4 id="dash-movies" class="text-2xl font-black cyber-font text-purple-400 mt-1">0</h4>
+                            </div>
+                            <i class="fa-solid fa-film text-purple-500/30 text-2xl"></i>
+                        </div>
+                        <div class="bg-black/30 border border-white/5 p-4 rounded-xl flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold">书籍领域交互</p>
+                                <h4 id="dash-books" class="text-2xl font-black cyber-font text-emerald-400 mt-1">0</h4>
+                            </div>
+                            <i class="fa-solid fa-book text-emerald-500/30 text-2xl"></i>
+                        </div>
+                    </div>
+
+                    <!-- Tabs: Interactive History vs Similar Circles -->
+                    <div class="flex space-x-4 border-b border-white/10 pb-2 text-sm font-semibold">
+                        <button id="tab-user-history" onclick="toggleSocialDetailTab('history')" class="text-cyan-400 border-b-2 border-cyan-400 pb-2 px-1">交互时序历史</button>
+                        <button id="tab-user-similar" onclick="toggleSocialDetailTab('similar')" class="text-gray-400 hover:text-white pb-2 px-1">社交相似匹配 (余弦圈)</button>
+                    </div>
+
+                    <!-- User History Timeline View -->
+                    <div id="social-tab-history-content" class="flex-grow overflow-y-auto max-h-[420px] pr-2 space-y-3">
+                        <!-- Dynamic list of history -->
+                    </div>
+
+                    <!-- User Similar Circle Match View -->
+                    <div id="social-tab-similar-content" class="hidden flex-grow overflow-y-auto max-h-[420px] pr-2 space-y-4">
+                        <!-- Similar user matching results with details -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // State management
+    let currentFlowDirection = { source: 'movie', target: 'book' };
+    let selectedQueue = []; // items chosen by user
+    let activeUsersList = []; // list of active users loaded from API
+    let popularMovies = [];
+    let popularBooks = [];
+    let currentItemsTab = 'search'; // 'search' or 'popular'
+    let currentSocialUser = null;
+    let currentSocialDetailTab = 'history';
+
+    // Fetch initial parameters
+    document.addEventListener("DOMContentLoaded", () => {
+        loadPresetUsers();
+        loadPopularItems();
+    });
+
+    function switchMode(mode) {
+        const navRec = document.getElementById('nav-rec');
+        const navSocial = document.getElementById('nav-social');
+        const modeRec = document.getElementById('mode-recommend');
+        const modeSocial = document.getElementById('mode-social');
+
+        if (mode === 'recommend') {
+            navRec.className = "flex items-center space-x-2 text-cyan-400 font-semibold cyber-font text-lg border-b-2 border-cyan-400 pb-1 px-1 transition-all";
+            navSocial.className = "flex items-center space-x-2 text-gray-400 hover:text-white font-semibold cyber-font text-lg pb-1 px-1 transition-all";
+            modeRec.classList.remove('hidden');
+            modeSocial.classList.add('hidden');
+        } else {
+            navSocial.className = "flex items-center space-x-2 text-cyan-400 font-semibold cyber-font text-lg border-b-2 border-cyan-400 pb-1 px-1 transition-all";
+            navRec.className = "flex items-center space-x-2 text-gray-400 hover:text-white font-semibold cyber-font text-lg pb-1 px-1 transition-all";
+            modeSocial.classList.remove('hidden');
+            modeRec.classList.add('hidden');
+            // Load social user lists if empty
+            if (activeUsersList.length === 0) {
+                fetchActiveUsers();
+            }
+        }
+    }
+
+    // Toggle flow direction movie <-> book
+    function setFlowDirection(src, tgt) {
+        currentFlowDirection = { source: src, target: tgt };
+        
+        const m2b = document.getElementById('flow-m2b');
+        const b2m = document.getElementById('flow-b2m');
+        const searchInput = document.getElementById('search-input');
+
+        if (src === 'movie') {
+            m2b.className = "flex-1 py-3 text-center rounded-lg font-bold cyber-font text-base transition-all bg-purple-600/30 text-purple-300 border border-purple-500/30";
+            b2m.className = "flex-1 py-3 text-center rounded-lg font-bold cyber-font text-base transition-all text-gray-400 hover:text-white";
+            searchInput.placeholder = "输入电影名称查找...";
+        } else {
+            b2m.className = "flex-1 py-3 text-center rounded-lg font-bold cyber-font text-base transition-all bg-purple-600/30 text-purple-300 border border-purple-500/30";
+            m2b.className = "flex-1 py-3 text-center rounded-lg font-bold cyber-font text-base transition-all text-gray-400 hover:text-white";
+            searchInput.placeholder = "输入书籍名称查找...";
+        }
+
+        // Switch popular list according to the new source domain
+        renderPopularOrSearch();
+    }
+
+    // Fetch lists
+    function loadPresetUsers() {
+        const select = document.getElementById('user-presets');
+        fetch('/api/users')
+            .then(res => res.json())
+            .then(data => {
+                select.innerHTML = '<option value="">-- 选择活跃测试用户 (加载历史序列) --</option>';
+                data.forEach(user => {
+                    const opt = document.createElement('option');
+                    opt.value = user.user_id;
+                    opt.textContent = `${user.username} (历史交互: ${user.history_count} = 电影:${user.movie_count} 书籍:${user.book_count})`;
+                    select.appendChild(opt);
+                });
+            });
+    }
+
+    function loadPopularItems() {
+        // Fetch popular for both domains
+        fetch('/api/popular/movie?limit=25')
+            .then(res => res.json())
+            .then(data => {
+                popularMovies = data;
+                renderPopularOrSearch();
+            });
+
+        fetch('/api/popular/book?limit=25')
+            .then(res => res.json())
+            .then(data => {
+                popularBooks = data;
+            });
+    }
+
+    // Load preset user history into current interactive queue
+    function loadPresetUser(userId) {
+        if (!userId) return;
+        fetch(`/api/user/${userId}`)
+            .then(res => res.json())
+            .then(user => {
+                // Filter the history list to align with current flow's source domain
+                // So if flow is Movie -> Book, we fill the queue with user's movie interactions
+                const srcDom = currentFlowDirection.source;
+                const filteredHistory = user.history.filter(item => item.domain === srcDom);
+                
+                selectedQueue = filteredHistory.slice(0, 50); // limit to 50 items
+                updateQueueUI();
+                showToast(`已载入用户 ${user.username} 的 ${filteredQueueCount(filteredHistory)} 个已交互的${srcDom === 'movie' ? '电影' : '书籍'}记录`, 'success');
+            })
+            .catch(err => {
+                showToast("载入用户序列失败: " + err, "error");
+            });
+    }
+
+    function filteredQueueCount(filteredHistory) {
+        return Math.min(filteredHistory.length, 50);
+    }
+
+    // Add item to queue
+    function addToQueue(item) {
+        if (selectedQueue.some(x => x.id === item.id)) {
+            showToast("该物品已经在序列中了", "error");
+            return;
+        }
+        if (selectedQueue.length >= 50) {
+            showToast("历史队列最大限制为 50 个", "error");
+            return;
+        }
+        selectedQueue.push(item);
+        updateQueueUI();
+        showToast(`已添加: ${item.title.substring(0,25)}...`, "success");
+    }
+
+    // Remove from queue
+    function removeFromQueue(itemId) {
+        selectedQueue = selectedQueue.filter(x => x.id !== itemId);
+        updateQueueUI();
+    }
+
+    function clearQueue() {
+        selectedQueue = [];
+        updateQueueUI();
+        showToast("序列已清空", "success");
+    }
+
+    function updateQueueUI() {
+        const container = document.getElementById('queue-tags');
+        const counter = document.getElementById('queue-counter');
+        counter.textContent = selectedQueue.length;
+
+        if (selectedQueue.length === 0) {
+            container.innerHTML = '<div class="text-gray-500 text-sm py-4 text-center w-full">未选择任何物品。在上方搜索并添加到序列。</div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        selectedQueue.forEach(item => {
+            const tag = document.createElement('div');
+            tag.className = "flex items-center space-x-2 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 border border-purple-500/40 text-purple-200 px-3 py-1.5 rounded-xl text-xs font-semibold max-w-[280px] shrink-0";
+            tag.innerHTML = `
+                <span class="truncate" title="${item.title}">${item.title}</span>
+                <button onclick="removeFromQueue(${item.id})" class="text-purple-400 hover:text-white transition-colors ml-1"><i class="fa-solid fa-xmark"></i></button>
+            `;
+            container.appendChild(tag);
+        });
+    }
+
+    // Handle Search Debounce
+    let searchTimeout = null;
+    function handleSearchDebounce(event) {
+        clearTimeout(searchTimeout);
+        const val = event.target.value;
+        const spinner = document.getElementById('search-spinner');
+        
+        if (!val.trim()) {
+            toggleItemsTab('popular');
+            return;
+        }
+
+        toggleItemsTab('search');
+        spinner.classList.remove('hidden');
+
+        searchTimeout = setTimeout(() => {
+            fetch(`/api/search?q=${encodeURIComponent(val)}&domain=${currentFlowDirection.source}&limit=30`)
+                .then(res => res.json())
+                .then(results => {
+                    spinner.classList.add('hidden');
+                    renderSearchResults(results);
+                })
+                .catch(err => {
+                    spinner.classList.add('hidden');
+                    showToast("搜索出错: " + err, "error");
+                });
+        }, 300);
+    }
+
+    function toggleItemsTab(tab) {
+        currentItemsTab = tab;
+        const tabSearch = document.getElementById('tab-search');
+        const tabPopular = document.getElementById('tab-popular');
+
+        if (tab === 'search') {
+            tabSearch.className = "text-cyan-400 border-b-2 border-cyan-400 pb-2 px-1";
+            tabPopular.className = "text-gray-400 hover:text-white pb-2 px-1";
+        } else {
+            tabPopular.className = "text-cyan-400 border-b-2 border-cyan-400 pb-2 px-1";
+            tabSearch.className = "text-gray-400 hover:text-white pb-2 px-1";
+            renderPopularOrSearch();
+        }
+    }
+
+    function renderPopularOrSearch() {
+        if (currentItemsTab === 'popular') {
+            const list = currentFlowDirection.source === 'movie' ? popularMovies : popularBooks;
+            renderSearchResults(list, true);
+        }
+    }
+
+    function renderSearchResults(items, isPopular = false) {
+        const container = document.getElementById('items-pool-list');
+        if (!items || items.length === 0) {
+            container.innerHTML = `<div class="text-gray-500 text-center py-8 text-sm">暂无数据，试着搜索其他关键字。</div>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = "bg-white/5 border border-white/5 hover:border-white/15 p-3 rounded-xl flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer";
+            card.onclick = () => addToQueue(item);
+            card.innerHTML = `
+                <div class="flex items-center space-x-3 truncate">
+                    <img src="${item.image}" onerror="this.src='/static/images/default.jpg'" class="w-10 h-14 object-cover rounded bg-black/40 border border-white/10 shrink-0">
+                    <div class="truncate">
+                        <h4 class="text-sm font-bold text-white truncate" title="${item.title}">${item.title}</h4>
+                        <p class="text-xs text-gray-500 mt-1 truncate">${item.description ? item.description : '无详细描述'}</p>
+                    </div>
+                </div>
+                <button class="ml-4 w-7 h-7 rounded-lg bg-cyan-400/10 hover:bg-cyan-400 text-cyan-400 hover:text-black flex items-center justify-center transition-all shrink-0">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                </button>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // Run Recommendation Model Inference
+    function runCrossDomainRecommendation() {
+        if (selectedQueue.length === 0) {
+            showToast("请至少添加一个物品到序列后再运行推荐模型", "error");
+            return;
+        }
+
+        const btn = document.getElementById('btn-run-rec');
+        const loader = document.getElementById('rec-loading');
+        const resultsContainer = document.getElementById('recommendation-results');
+
+        btn.disabled = true;
+        btn.classList.add('opacity-50');
+        loader.classList.remove('hidden');
+        resultsContainer.innerHTML = `
+            <div class="h-full flex flex-col items-center justify-center text-center text-gray-500 py-16">
+                <i class="fa-solid fa-circle-notch animate-spin text-5xl mb-4 text-cyan-400"></i>
+                <p class="text-base font-semibold text-cyan-400 animate-pulse">跨域多模态推荐算法推理中...</p>
+                <p class="text-xs text-gray-500">Transformer 各模态门控融合及余弦相似匹配计算中，请稍后</p>
+            </div>
+        `;
+
+        const itemIds = selectedQueue.map(x => x.id);
+
+        fetch('/api/recommend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                items: itemIds,
+                target: currentFlowDirection.target,
+                top_k: 10
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50');
+            loader.classList.add('hidden');
+            renderRecommendationResults(data);
+            showToast("推荐成功生成！", "success");
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50');
+            loader.classList.add('hidden');
+            showToast("推荐预测出错: " + err, "error");
+        });
+    }
+
+    function renderRecommendationResults(results) {
+        const container = document.getElementById('recommendation-results');
+        if (!results || results.length === 0) {
+            container.innerHTML = `
+                <div class="h-full flex flex-col items-center justify-center text-center text-gray-500 py-16">
+                    <i class="fa-solid fa-triangle-exclamation text-5xl mb-4 text-rose-500/30"></i>
+                    <p class="text-base font-semibold text-gray-400">未能匹配到推荐结果</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = '';
+        results.forEach((item, index) => {
+            const card = document.createElement('div');
+            card.className = "glass-panel-glow p-4 rounded-2xl flex items-center justify-between hover:bg-white/5 transition-all relative overflow-hidden fade-in border-l-4 border-cyan-400";
+            
+            // Score visualization helper
+            const percent = (item.score * 100).toFixed(2);
+            
+            card.innerHTML = `
+                <div class="flex items-center space-x-4 truncate flex-grow">
+                    <div class="w-8 h-8 rounded-lg bg-cyan-400/20 text-cyan-300 font-bold cyber-font text-base flex items-center justify-center border border-cyan-400/40 shrink-0">
+                        ${index + 1}
+                    </div>
+                    <img src="${item.image}" onerror="this.src='/static/images/default.jpg'" class="w-12 h-16 object-cover rounded bg-black/40 border border-white/10 shrink-0">
+                    <div class="truncate flex-grow">
+                        <h4 class="text-base font-bold text-white truncate" title="${item.title}">${item.title}</h4>
+                        <p class="text-xs text-gray-400 mt-1 max-w-[90%] truncate">${item.description ? item.description : '无详细描述信息。'}</p>
+                        <!-- Score visual indicator -->
+                        <div class="mt-2 flex items-center space-x-3 w-[70%]">
+                            <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-gradient-to-r from-cyan-400 to-indigo-500 h-full rounded-full" style="width: ${Math.min(100, item.score * 2000)}%"></div>
+                            </div>
+                            <span class="text-[11px] font-bold cyber-font text-cyan-400">${(item.score * 1000).toFixed(1)} Pts</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <span class="text-xs uppercase px-3 py-1.5 rounded-full border bg-cyan-500/10 border-cyan-500/30 text-cyan-300 font-bold cyber-font tracking-wider shrink-0">
+                    ${item.domain === 'movie' ? '<i class="fa-solid fa-film mr-1"></i>Movie' : '<i class="fa-solid fa-book mr-1"></i>Book'}
+                </span>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // SOCIAL DISCOVERY FEATURES
+    function fetchActiveUsers() {
+        const list = document.getElementById('active-users-list');
+        list.innerHTML = `
+            <div class="flex flex-col items-center justify-center text-center text-gray-500 py-16">
+                <i class="fa-solid fa-circle-notch animate-spin text-3xl mb-4 text-cyan-400"></i>
+                <p class="text-sm">加载活跃用户列表中...</p>
+            </div>
+        `;
+
+        fetch('/api/users')
+            .then(res => res.json())
+            .then(data => {
+                activeUsersList = data;
+                renderActiveUsers(data);
+            })
+            .catch(err => {
+                showToast("获取活跃用户出错: " + err, "error");
+            });
+    }
+
+    function renderActiveUsers(users) {
+        const list = document.getElementById('active-users-list');
+        if (users.length === 0) {
+            list.innerHTML = `<div class="text-gray-500 text-center py-8">无符合条件的用户。</div>`;
+            return;
+        }
+
+        list.innerHTML = '';
+        users.forEach(user => {
+            const card = document.createElement('div');
+            card.className = "bg-white/5 border border-white/5 hover:border-cyan-500/40 p-4 rounded-xl flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer group";
+            if (currentSocialUser && currentSocialUser.user_id === user.user_id) {
+                card.className += " border-cyan-400 bg-cyan-400/5";
+            }
+            card.onclick = () => selectSocialUser(user.user_id);
+            card.innerHTML = `
+                <div>
+                    <h4 class="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">${user.username}</h4>
+                    <p class="text-[11px] text-gray-500 font-mono mt-1">ID: ${user.user_id}</p>
+                    <div class="flex items-center space-x-3 mt-2 text-[10px] text-gray-400">
+                        <span class="flex items-center"><i class="fa-solid fa-film text-purple-400 mr-1"></i>${user.movie_count}</span>
+                        <span class="flex items-center"><i class="fa-solid fa-book text-emerald-400 mr-1"></i>${user.book_count}</span>
+                    </div>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-white/5 group-hover:bg-cyan-400/20 text-gray-500 group-hover:text-cyan-400 flex items-center justify-center transition-all">
+                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    function filterActiveUsers(query) {
+        const filtered = activeUsersList.filter(user => 
+            String(user.user_id).includes(query) || 
+            user.username.toLowerCase().includes(query.toLowerCase())
+        );
+        renderActiveUsers(filtered);
+    }
+
+    function selectSocialUser(userId) {
+        // Highlighting list item
+        const cards = document.getElementById('active-users-list').children;
+        // Refetch user list to redraw border highlights
+        renderActiveUsers(activeUsersList);
+
+        const emptyState = document.getElementById('social-empty-state');
+        const details = document.getElementById('social-user-details');
+        
+        emptyState.classList.add('hidden');
+        details.classList.remove('hidden');
+        details.classList.add('flex');
+
+        fetch(`/api/user/${userId}`)
+            .then(res => res.json())
+            .then(user => {
+                currentSocialUser = user;
+                
+                // Set text info
+                document.getElementById('detail-username').textContent = user.username;
+                document.getElementById('detail-userid').textContent = `USER_HASH_KEY: ${user.username}`;
+                document.getElementById('dash-total').textContent = user.history_count;
+                document.getElementById('dash-movies').textContent = user.movie_count;
+                document.getElementById('dash-books').textContent = user.book_count;
+
+                // Load reciprocal trigger details button handler
+                document.getElementById('btn-load-to-rec').onclick = () => {
+                    const srcDom = currentFlowDirection.source;
+                    const filtered = user.history.filter(x => x.domain === srcDom);
+                    selectedQueue = filtered.slice(0, 50);
+                    updateQueueUI();
+                    switchMode('recommend');
+                    showToast(`已成功将用户 ${user.username} 的 ${selectedQueue.length} 个历史${srcDom === 'movie' ? '电影' : '书籍'}载入推荐流中`, 'success');
+                };
+
+                // Render detail contents
+                toggleSocialDetailTab('history');
+            })
+            .catch(err => {
+                showToast("载入用户详情出错: " + err, "error");
+            });
+    }
+
+    function toggleSocialDetailTab(tab) {
+        currentSocialDetailTab = tab;
+        const tabHistory = document.getElementById('tab-user-history');
+        const tabSimilar = document.getElementById('tab-user-similar');
+        const contentHistory = document.getElementById('social-tab-history-content');
+        const contentSimilar = document.getElementById('social-tab-similar-content');
+
+        if (tab === 'history') {
+            tabHistory.className = "text-cyan-400 border-b-2 border-cyan-400 pb-2 px-1";
+            tabSimilar.className = "text-gray-400 hover:text-white pb-2 px-1";
+            contentHistory.classList.remove('hidden');
+            contentSimilar.classList.add('hidden');
+            renderUserHistoryTimeline();
+        } else {
+            tabSimilar.className = "text-cyan-400 border-b-2 border-cyan-400 pb-2 px-1";
+            tabHistory.className = "text-gray-400 hover:text-white pb-2 px-1";
+            contentSimilar.classList.remove('hidden');
+            contentHistory.classList.add('hidden');
+            renderUserSimilarCircle();
+        }
+    }
+
+    function renderUserHistoryTimeline() {
+        const container = document.getElementById('social-tab-history-content');
+        if (!currentSocialUser || !currentSocialUser.history || currentSocialUser.history.length === 0) {
+            container.innerHTML = `<div class="text-gray-500 text-center py-8">暂无历史行为记录</div>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        currentSocialUser.history.forEach(item => {
+            const card = document.createElement('div');
+            card.className = "bg-white/5 border border-white/5 p-3 rounded-xl flex items-center justify-between";
+            card.innerHTML = `
+                <div class="flex items-center space-x-3 truncate">
+                    <img src="${item.image}" onerror="this.src='/static/images/default.jpg'" class="w-9 h-12 object-cover rounded bg-black/40 border border-white/10 shrink-0">
+                    <div class="truncate">
+                        <h4 class="text-xs font-bold text-white truncate" title="${item.title}">${item.title}</h4>
+                        <p class="text-[10px] text-gray-500 mt-1 truncate">${item.description ? item.description : '无详细描述'}</p>
+                    </div>
+                </div>
+                <span class="text-[10px] px-2 py-0.5 rounded border shrink-0 ${item.domain === 'movie' ? 'bg-purple-500/10 border-purple-500/30 text-purple-300' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'}">
+                    ${item.domain === 'movie' ? '电影' : '书籍'}
+                </span>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function renderUserSimilarCircle() {
+        const container = document.getElementById('social-tab-similar-content');
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center text-center text-gray-500 py-16">
+                <i class="fa-solid fa-circle-notch animate-spin text-3xl mb-4 text-cyan-400"></i>
+                <p class="text-sm">构建品味重叠余弦圈中...</p>
+            </div>
+        `;
+
+        fetch('/api/similar_users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: currentSocialUser.user_id,
+                top_k: 5
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center text-center text-gray-500 py-12">
+                        <i class="fa-solid fa-face-meh text-4xl mb-3 text-gray-600"></i>
+                        <p class="text-sm">在活跃用户群组中未匹配到有共同爱好的相似用户</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            data.forEach(simUser => {
+                const card = document.createElement('div');
+                card.className = "bg-white/5 border border-white/5 p-4 rounded-xl flex flex-col space-y-3";
+                
+                // Build lists of overlap item tags
+                let overlapHtml = '';
+                simUser.overlap_items.slice(0, 5).forEach(item => {
+                    overlapHtml += `
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 truncate max-w-[150px] inline-block" title="${item.title}">
+                            ${item.title}
+                        </span>
+                    `;
+                });
+                if (simUser.overlap_items.length > 5) {
+                    overlapHtml += `<span class="text-[10px] text-gray-500 font-bold ml-1">+${simUser.overlap_items.length - 5}</span>`;
+                }
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="text-sm font-bold text-white flex items-center">
+                                <i class="fa-solid fa-user-circle text-purple-400 mr-2 text-base"></i>
+                                ${simUser.username}
+                            </h4>
+                            <p class="text-[10px] text-gray-500 font-mono mt-0.5">ID: ${simUser.user_id}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs bg-cyan-400/10 border border-cyan-400/30 text-cyan-300 px-2 py-1 rounded font-bold cyber-font">
+                                品味重叠 ${(simUser.similarity * 100).toFixed(1)}%
+                            </span>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1.5">共同喜欢作品:</p>
+                        <div class="flex flex-wrap gap-2">
+                            ${overlapHtml}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        })
+        .catch(err => {
+            container.innerHTML = `<div class="text-rose-400 text-center py-8">载入相似朋友圈失败: ${err}</div>`;
+        });
+    }
+</script>
+{% endblock %}

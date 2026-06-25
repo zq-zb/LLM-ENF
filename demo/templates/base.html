@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrossDomain RecSys - 跨域多模态推荐系统</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #0b0c10;
+            color: #c5c6c7;
+            overflow-x: hidden;
+        }
+        .cyber-title {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .cyber-font {
+            font-family: 'Rajdhani', sans-serif;
+        }
+        /* Glassmorphism Classes */
+        .glass-panel {
+            background: rgba(31, 38, 135, 0.08);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glass-panel-glow {
+            background: rgba(31, 38, 135, 0.12);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(102, 252, 241, 0.2);
+            box-shadow: 0 0 20px rgba(102, 252, 241, 0.1);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0c10;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1f2833;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #66fcf1;
+        }
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            pointer-events: none;
+        }
+        /* Custom neon button styling */
+        .btn-neon-purple {
+            border: 1px solid #9d4edd;
+            background: rgba(157, 78, 221, 0.1);
+            color: #e0aaff;
+            box-shadow: 0 0 10px rgba(157, 78, 221, 0.2);
+            transition: all 0.3s ease;
+        }
+        .btn-neon-purple:hover {
+            background: #9d4edd;
+            color: #fff;
+            box-shadow: 0 0 20px rgba(157, 78, 221, 0.5);
+        }
+        .btn-neon-cyan {
+            border: 1px solid #45f3ff;
+            background: rgba(69, 243, 255, 0.1);
+            color: #45f3ff;
+            box-shadow: 0 0 10px rgba(69, 243, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        .btn-neon-cyan:hover {
+            background: #45f3ff;
+            color: #0b0c10;
+            box-shadow: 0 0 20px rgba(69, 243, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Canvas for particle background -->
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- Navigation Header -->
+    <header class="glass-panel sticky top-0 z-50 border-b border-white/10 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-indigo-500 via-purple-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                <i class="fa-solid fa-microchip text-white text-lg animate-pulse"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wider text-white cyber-title flex items-center">
+                    CROSSDOMAIN <span class="text-cyan-400 ml-2">RECSYS</span>
+                </h1>
+                <p class="text-xs text-purple-400/80 tracking-widest uppercase font-semibold">Multi-Modal Transformer RecEngine</p>
+            </div>
+        </div>
+        
+        <nav class="flex items-center space-x-6">
+            <button onclick="switchMode('recommend')" id="nav-rec" class="flex items-center space-x-2 text-cyan-400 font-semibold cyber-font text-lg border-b-2 border-cyan-400 pb-1 px-1 transition-all">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>跨域推荐</span>
+            </button>
+            <button onclick="switchMode('social')" id="nav-social" class="flex items-center space-x-2 text-gray-400 hover:text-white font-semibold cyber-font text-lg pb-1 px-1 transition-all">
+                <i class="fa-solid fa-users"></i>
+                <span>社交发现</span>
+            </button>
+        </nav>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow container mx-auto px-4 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="glass-panel border-t border-white/10 py-6 text-center text-sm text-gray-500 mt-auto">
+        <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between px-6">
+            <p>&copy; 2026 跨域多模态推荐系统. 社会计算课题演示组</p>
+            <div class="flex space-x-6 mt-3 sm:mt-0 text-gray-400">
+                <span class="flex items-center"><i class="fa-solid fa-circle text-xs text-green-500 mr-2"></i> 模型状态: 已就绪</span>
+                <span class="flex items-center"><i class="fa-solid fa-server text-xs text-cyan-400 mr-2"></i> API: Active</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col space-y-3"></div>
+
+    <!-- Canvas Animation Script -->
+    <script>
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let mouse = { x: null, y: null, radius: 150 };
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.x;
+            mouse.y = e.y;
+        });
+        window.addEventListener('mouseout', () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 1;
+                this.baseX = this.x;
+                this.baseY = this.y;
+                this.density = (Math.random() * 30) + 10;
+                this.color = Math.random() > 0.5 ? 'rgba(102, 252, 241, 0.4)' : 'rgba(157, 78, 221, 0.4)';
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+            update() {
+                // Return to base or move slightly
+                let dx = this.baseX - this.x;
+                let dy = this.baseY - this.y;
+                this.x += dx / 20;
+                this.y += dy / 20;
+
+                // Mouse interaction
+                if (mouse.x != null && mouse.y != null) {
+                    let mDx = mouse.x - this.x;
+                    let mDy = mouse.y - this.y;
+                    let dist = Math.sqrt(mDx * mDx + mDy * mDy);
+                    if (dist < mouse.radius) {
+                        let force = (mouse.radius - dist) / mouse.radius;
+                        let directionX = mDx / dist;
+                        let directionY = mDy / dist;
+                        this.x -= directionX * force * 10;
+                        this.y -= directionY * force * 10;
+                    }
+                }
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            const count = Math.min(100, Math.floor(window.innerWidth / 15));
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle());
+            }
+        }
+        initParticles();
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            // Connect close particles with light lines
+            for (let a = 0; a < particles.length; a++) {
+                for (let b = a; b < particles.length; b++) {
+                    let dx = particles[a].x - particles[b].x;
+                    let dy = particles[a].y - particles[b].y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 100) {
+                        ctx.strokeStyle = `rgba(102, 252, 241, ${0.15 - (dist/100)*0.15})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.beginPath();
+                        ctx.moveTo(particles[a].x, particles[a].y);
+                        ctx.lineTo(particles[b].x, particles[b].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // Toast Helper
+        function showToast(message, type = "success") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `glass-panel-glow border-l-4 ${type === 'success' ? 'border-cyan-400' : 'border-rose-500'} px-5 py-3 rounded-lg flex items-center justify-between text-white font-medium shadow-2xl transition-all duration-300 transform translate-x-12 opacity-0`;
+            toast.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <i class="${type === 'success' ? 'fa-solid fa-circle-check text-cyan-400' : 'fa-solid fa-circle-xmark text-rose-500'}"></i>
+                    <span>${message}</span>
+                </div>
+                <button class="ml-4 hover:text-gray-300" onclick="this.parentElement.remove()"><i class="fa-solid fa-xmark"></i></button>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('translate-x-12', 'opacity-0');
+            }, 50);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
